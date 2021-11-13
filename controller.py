@@ -50,7 +50,7 @@ class HermineController(TGController):
         channel_dict = next(filter(
             lambda chan_dict: chan_dict["name"] == channel_name,
             client.subscribed_channels.values()))
-        client.send_msg_to_channel(channel_dict["id"], request.body)
+        client.send_msg_to_channel(channel_dict["id"], request.body.decode("utf-8"))
         return {"status": "ok"}
 
     @expose()
