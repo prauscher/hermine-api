@@ -6,10 +6,11 @@ from tg import expose, decode_params, TGController, request
 from api_client import StashCatClient
 
 
+# Note: **kw is needed somehow to trick TurboGears-decode_params
 class HermineController(TGController):
     @expose("json")
     @decode_params("json")
-    def login(self, *a, mail, password, **kw):
+    def login(self, *, mail, password, **kw):
         client = StashCatClient()
         payload = client.login(mail, password)
         if payload:
@@ -20,7 +21,7 @@ class HermineController(TGController):
 
     @expose("json")
     @decode_params("json")
-    def subscribed_channels(self, *a, user_id, client_key, **kw):
+    def subscribed_channels(self, *, user_id, client_key, **kw):
         client = StashCatClient(client_key, user_id)
         client.get_channels()
         return {"channels":
@@ -30,7 +31,7 @@ class HermineController(TGController):
 
     @expose("json")
     @decode_params("json")
-    def send_channel(self, *a, user_id, client_key, channel_name, encryption_key, message, **kw):
+    def send_channel(self, *, user_id, client_key, channel_name, encryption_key, message, **kw):
         client = StashCatClient(client_key, user_id)
         client.get_private_key()
         client.unlock_private_key(encryption_key)
@@ -42,7 +43,7 @@ class HermineController(TGController):
         return {"status": "ok"}
 
     @expose("json")
-    def ga_send_channel(self, user_id, client_key, encryption_key, channel_name, *a, **kw):
+    def ga_send_channel(self, user_id, client_key, encryption_key, channel_name, **kw):
         client = StashCatClient(client_key, user_id)
         client.get_private_key()
         client.unlock_private_key(encryption_key)
@@ -55,7 +56,7 @@ class HermineController(TGController):
 
     @expose(content_type="text/plain")
     @decode_params("json")
-    def ga_alarmiert_text(self, *a, scenarios, units, labels, users, **kw):
+    def ga_alarmiert_text(self, *, scenarios, units, labels, users, **kw):
         alarmiert = []
         for scenario in scenarios:
             alarmiert.extend([unit["name"] for unit in scenario["units"]])
