@@ -53,6 +53,17 @@ class HermineController(TGController):
         client.send_msg_to_channel(channel_dict["id"], request.body.decode("utf-8"))
         return {"status": "ok"}
 
+    @expose(content_type="text/plain")
+    @decode_params("json")
+    def ga_alarmiert_text(self, *a, scenarios, units, labels, users, **kw):
+        alarmiert = []
+        for scenario in scenarios:
+            alarmiert.extend([unit["name"] for unit in scenario["units"]])
+        alarmiert.extend([unit["name"] for unit in units])
+        alarmiert.extend([label["label"]["name"] for label in labels])
+        alarmiert.extend([str(user) for user in users])
+        return ", ".join(alarmiert)
+
     @expose()
     def index(self):
         return "Work in progress"
