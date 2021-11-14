@@ -61,7 +61,7 @@ class HermineController(TGController):
             alarmiert.extend([unit["name"] for unit in scenario["units"]])
         alarmiert.extend([unit["name"] for unit in units])
         alarmiert.extend([label["label"]["name"] for label in labels])
-        alarmiert.extend([str(user) for user in users])
+        alarmiert.extend(["User #{}".format(user) for user in users])
         return ", ".join(alarmiert)
 
     @expose()
