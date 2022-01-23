@@ -43,6 +43,19 @@ class HermineController(TGController):
         return {"status": "ok"}
 
     @expose("json")
+    def ga_action(self, user_id, client_key, encryption_key, channel_name=None, **kw):
+        client = StashCatClient(client_key, user_id)
+        client.get_private_key()
+        client.unlock_private_key(encryption_key)
+        client.get_channels()
+        if channel_name:
+            channel_dict = next(filter(
+                lambda chan_dict: chan_dict["name"] == channel_name,
+                client.subscribed_channels.values()))
+            client.send_msg_to_channel(channel_dict["id"], request.body.decode("utf-8"))
+        return {"status": "ok"}
+
+    @expose("json")
     def ga_send_channel(self, user_id, client_key, encryption_key, channel_name, **kw):
         client = StashCatClient(client_key, user_id)
         client.get_private_key()
