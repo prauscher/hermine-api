@@ -50,7 +50,7 @@ class HermineController(TGController):
 
     @expose("json")
     def ga_action(self, mail, password, encryption_key, channel_name=None, **kw):
-        account_filename = f"{account_dir}/{hashlib.sha256(email.encode('utf-8')).hexdigest()}"
+        account_filename = f"{account_dir}/{hashlib.sha256(mail.encode('utf-8')).hexdigest()}"
         try:
             account_data = open(account_filename, 'r', encoding='utf-8').read()
             client = StashCatClient(account_data['client_key'], account_data['user_id'])
