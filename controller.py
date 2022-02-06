@@ -52,7 +52,7 @@ class HermineController(TGController):
     def ga_action(self, mail, password, encryption_key, channel_name=None, **kw):
         account_filename = f"{account_dir.name}/{hashlib.sha256(mail.encode('utf-8')).hexdigest()}"
         try:
-            account_data = open(account_filename, 'r', encoding='utf-8').read()
+            account_data = json.loads(open(account_filename, 'r', encoding='utf-8').read())
             client = StashCatClient(account_data['client_key'], account_data['user_id'])
             if not client.get_private_key():
                 raise OSError
