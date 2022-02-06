@@ -2,8 +2,14 @@
 # -*- coding: utf-8 -*-
 
 from tg import expose, decode_params, TGController, request
+from tempfile import TemporaryDirectory
+import hashlib
+import json
 
 from api_client import StashCatClient
+
+
+account_dir = TemporaryDirectory()
 
 
 # Note: **kw is needed somehow to trick TurboGears-decode_params
@@ -43,9 +49,24 @@ class HermineController(TGController):
         return {"status": "ok"}
 
     @expose("json")
-    def ga_action(self, user_id, client_key, encryption_key, channel_name=None, **kw):
-        client = StashCatClient(client_key, user_id)
-        client.get_private_key()
+    def ga_action(self, mail, password, encryption_key, channel_name=None, **kw):
+        account_filename = f"{account_dir}/{hashlib.sha256(email.encode('utf-8')).hexdigest()}"
+        try:
+            account_data = open(account_filename, 'r', encoding='utf-8').read()
+            client = StashCatClient(account_data['client_key'], account_data['user_id'])
+            if not client.get_private_key():
+                raise OSError
+        except OSError:
+            client = StashCatClient()
+            payload = client.login(mail, password)
+            if payload:
+                open(account_filename, 'w', encoding='utf-8').write(
+                    json.dumps({'user_id': payload['userinfo']['id'],
+                                'client_key': payload['client_key']}))
+            else:
+                return {'error': 'Login failed'}
+            client.get_private_key()
+
         client.unlock_private_key(encryption_key)
         client.get_channels()
         if channel_name:
