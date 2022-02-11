@@ -129,6 +129,73 @@ class StashCatClient:
 
         self.conversations = {x["id"]: x for x in data["payload"]["conversations"]}
 
+    def search_user(self, search):
+        payload = {
+            "client_key": self.client_key,
+            "device_id": self.device_id,
+            "company": self.company_id,
+            "limit": 50,
+            "offset": 0,
+            "key_hashes": False,
+            "search": search,
+            "sorting": ["first_name_asc", "last_name_asc"],
+            "exclude_user_ids": [],
+            "group_ids": [],
+        }
+        r = requests.post(
+            "%s/users/listing" % self.base_url,
+            data=payload,
+            headers=self.headers,
+        )
+        r.raise_for_status()
+
+        data = r.json()
+        if data["status"]["value"] != "OK":
+            logging.debug(json.dumps(data, indent=2))
+            return None
+
+        return data["payload"]["users"]
+
+    def open_conversation(self, members):
+        conversation_key = Crypto.Random.get_random_bytes(32)
+
+        receivers = []
+        # Always add ourselves
+        receivers.append({
+            "id": int(self.user_id),
+            "key": base64.b64encode(Crypto.Cipher.PKCS1_OAEP.new(self.public_key).encrypt(conversation_key)).decode("utf-8")
+        })
+        for member in members:
+            pubkey = Crypto.PublicKey.RSA.import_key(member["public_key"])
+            encryptor = Crypto.Cipher.PKCS1_OAEP.new(pubkey)
+            receivers.append({
+                "id": int(member["id"]),
+                "key": base64.b64encode(encryptor.encrypt(conversation_key)).decode("utf-8")
+            })
+
+        payload = {
+            "client_key": self.client_key,
+            "device_id": self.device_id,
+            "members": json.dumps(receivers),
+        }
+        print(payload)
+        r = requests.post(
+            "%s/message/createEncryptedConversation" % self.base_url,
+            data=payload,
+            headers=self.headers,
+        )
+        r.raise_for_status()
+
+        data = r.json()
+        if data["status"]["value"] != "OK":
+            print(data)
+            logging.debug(json.dumps(data, indent=2))
+            return None
+
+        conversation = data["payload"]["conversation"]
+        self.conversations[conversation["id"]] = conversation
+        return conversation
+
     def get_company_member(self):
         payload = {
             "client_key": self.client_key,

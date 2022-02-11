@@ -49,7 +49,23 @@ class HermineController(TGController):
         return {"status": "ok"}
 
     @expose("json")
-    def ga_action(self, mail, password, encryption_key, channel_name=None, **kw):
+    @decode_params("json")
+    def send_conversation(self, *, user_id, client_key, encryption_key, names, message, **kw):
+        client = StashCatClient(client_key, user_id)
+        client.get_private_key()
+        client.unlock_private_key(encryption_key)
+        receivers = []
+        for name in names:
+            results = client.search_user(name)
+            if len(results) != 1:
+                return {"error": f"Name {name} does not match exactly one user"}
+            receivers.append(results[0])
+        conversation = client.open_conversation(receivers)
+        client.send_msg_to_user(conversation["id"], message)
+        return {"status": "ok"}
+
+    @expose("json")
+    def ga_action(self, mail, password, encryption_key, *receiver, **kw):
         account_filename = f"{account_dir.name}/{hashlib.sha256(mail.encode('utf-8')).hexdigest()}"
         try:
             account_data = json.loads(open(account_filename, 'r', encoding='utf-8').read())
@@ -69,11 +85,30 @@ class HermineController(TGController):
 
         client.unlock_private_key(encryption_key)
         client.get_channels()
-        if channel_name:
+        if not receiver:
+            return {"status": "ok", "text": "login successful"}
+
+        if receiver[0] == "user":
+            receivers = []
+            for name in receiver[1:]:
+                results = client.search_user(name)
+                if len(results) != 1:
+                    return {"error": f"Name {name} does not match exactly one user"}
+                receivers.append(results[0])
+            conversation = client.open_conversation(receivers)
+            client.send_msg_to_user(conversation["id"], message)
+
+        elif receiver[0] == "chan":
             channel_dict = next(filter(
-                lambda chan_dict: chan_dict["name"] == channel_name,
+                lambda chan_dict: chan_dict["name"] == receiver[1],
                 client.subscribed_channels.values()))
             client.send_msg_to_channel(channel_dict["id"], request.body.decode("utf-8"))
+        else:
+            channel_dict = next(filter(
+                lambda chan_dict: chan_dict["name"] == receiver[0],
+                client.subscribed_channels.values()))
+            client.send_msg_to_channel(channel_dict["id"], request.body.decode("utf-8"))
+
         return {"status": "ok"}
 
     @expose("json")
