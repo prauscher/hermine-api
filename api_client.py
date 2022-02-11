@@ -178,7 +178,6 @@ class StashCatClient:
             "device_id": self.device_id,
             "members": json.dumps(receivers),
         }
-        print(payload)
         r = requests.post(
             "%s/message/createEncryptedConversation" % self.base_url,
             data=payload,
@@ -188,7 +187,6 @@ class StashCatClient:
 
         data = r.json()
         if data["status"]["value"] != "OK":
-            print(data)
             logging.debug(json.dumps(data, indent=2))
             return None
 
