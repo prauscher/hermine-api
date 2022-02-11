@@ -96,7 +96,7 @@ class HermineController(TGController):
                     return {"error": f"Name {name} does not match exactly one user"}
                 receivers.append(results[0])
             conversation = client.open_conversation(receivers)
-            client.send_msg_to_user(conversation["id"], message)
+            client.send_msg_to_user(conversation["id"], request.body.decode("utf-8"))
 
         elif receiver[0] == "chan":
             channel_dict = next(filter(
