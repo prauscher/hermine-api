@@ -39,8 +39,6 @@ class StashCatClient:
     private_key = None
     public_key = None
 
-    company_id = None
-
     _key_cache = {}
 
     def __init__(self, client_key=None, user_id=None):
@@ -131,7 +129,6 @@ class StashCatClient:
         payload = {
             "client_key": self.client_key,
             "device_id": self.device_id,
-            "company": self.company_id,
             "limit": 50,
             "offset": 0,
             "key_hashes": False,
@@ -271,7 +268,6 @@ class StashCatClient:
         payload = {
             "client_key": self.client_key,
             "device_id": self.device_id,
-            "company": self.company_id,
         }
         r = requests.post(
             f"{self.base_url}/channels/subscripted",
