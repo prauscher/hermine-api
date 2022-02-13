@@ -18,7 +18,6 @@ import Crypto.Util.Padding
 
 class StashCatClient:
     base_url = "https://api.thw-messenger.de"
-    stashcat_version = "3.19.1"
     device_id = "stashcatiskindofbrokenrandomstr1"
 
     headers = {
@@ -27,7 +26,8 @@ class StashCatClient:
         "Accept-Language": "en-US,en;q=0.5",
         "Cache-Control": "no-cache",
         "Connection": "keep-alive",
-        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:82.0) Gecko/20100101 Firefox/82.0",
+        "User-Agent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 ("
+                      "KHTML, like Gecko) Chrome/97.0.4692.99 Mobile Safari/537.36",
     }
 
     client_key = None
@@ -64,7 +64,7 @@ class StashCatClient:
         data = self._post("auth/login", data={
             "email": username,
             "password": password,
-            "app_name": f"hermine@thw-Firefox:82.0-browser-{self.stashcat_version}",
+            "app_name": "hermine@thw-Chrome:97.0.4692.99-browser-4.11.1",
             "encrypted": True,
             "callable": True,
         })
