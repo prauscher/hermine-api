@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from tg import expose, decode_params, TGController, request
+from PIL import Image
 from tempfile import TemporaryDirectory
 import hashlib
 import json

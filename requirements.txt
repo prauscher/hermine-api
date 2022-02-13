@@ -1,3 +1,4 @@
 requests
+pillow
 pycryptodome
 TurboGears2
