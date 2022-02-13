@@ -38,8 +38,7 @@ class HermineController(TGController):
     @decode_params("json")
     def send_channel(self, *, user_id, client_key, channel_name, encryption_key, message, **kw):
         client = StashCatClient(client_key, user_id)
-        client.get_private_key()
-        client.unlock_private_key(encryption_key)
+        client.open_private_key(encryption_key)
         channel_dict = next(filter(
             lambda chan_dict: chan_dict["name"] == channel_name,
             client.get_channels()))
@@ -50,8 +49,7 @@ class HermineController(TGController):
     @decode_params("json")
     def send_conversation(self, *, user_id, client_key, encryption_key, names, message, **kw):
         client = StashCatClient(client_key, user_id)
-        client.get_private_key()
-        client.unlock_private_key(encryption_key)
+        client.open_private_key(encryption_key)
         receivers = []
         for name in names:
             results = client.search_user(name)
@@ -68,9 +66,8 @@ class HermineController(TGController):
         try:
             account_data = json.loads(open(account_filename, 'r', encoding='utf-8').read())
             client = StashCatClient(account_data['client_key'], account_data['user_id'])
-            if not client.get_private_key():
-                raise OSError
-        except OSError:
+            client.open_private_key(encryption_key)
+        except (OSError, ValueError):
             client = StashCatClient()
             payload = client.login(mail, password)
             if payload:
@@ -79,9 +76,8 @@ class HermineController(TGController):
                                 'client_key': payload['client_key']}))
             else:
                 return {'error': 'Login failed'}
-            client.get_private_key()
+            client.open_private_key(encryption_key)
 
-        client.unlock_private_key(encryption_key)
         if not receiver:
             return {"status": "ok", "text": "login successful"}
 

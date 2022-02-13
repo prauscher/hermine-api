@@ -32,13 +32,13 @@ class StashCatClient:
 
     client_key = None
     user_id = None
-    private_encrypted_key = None
     private_key = None
-    public_key = None
 
     _key_cache = {}
 
     def __init__(self, client_key=None, user_id=None):
+        self.device_id = base64.b64encode(Crypto.Random.get_random_bytes(24)).decode("utf-8")
+
         if client_key and user_id:
             self.client_key = client_key
             self.user_id = user_id
@@ -50,7 +50,11 @@ class StashCatClient:
 
         response = requests.post(f"{self.base_url}/{url}", data=data, headers=self.headers,
                                  **kwargs)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except requests.RequestException as exception:
+            raise ValueError(e) from exception
+
         data = response.json()
         if data["status"]["value"] != "OK":
             raise ValueError(data["status"]["message"])
@@ -69,19 +73,13 @@ class StashCatClient:
         self.user_id = data["userinfo"]["id"]
         return data
 
-    def get_private_key(self):
+    def open_private_key(self, encryption_password):
         data = self._post("security/get_private_key", data={})
         private_key_field = json.loads(data["keys"]["private_key"])
         # there might be an unescaping bug here....
-        self.private_encrypted_key = private_key_field["private"]
-        self.public_key = data["keys"]["public_key"]
-        return data
-
-    def unlock_private_key(self, encryption_password):
         self.private_key = Crypto.PublicKey.RSA.import_key(
-            self.private_encrypted_key, passphrase=encryption_password
+            private_key_field["private"], passphrase=encryption_password
         )
-        self.public_key = self.private_key.publickey()
 
     def get_open_conversations(self):
         data = self._post("message/conversations", data={
@@ -110,7 +108,7 @@ class StashCatClient:
 
         receivers = []
         # Always add ourselves
-        encryptor = Crypto.Cipher.PKCS1_OAEP.new(self.public_key)
+        encryptor = Crypto.Cipher.PKCS1_OAEP.new(self.private_key.publickey())
         receivers.append({
             "id": int(self.user_id),
             "key": base64.b64encode(encryptor.encrypt(conversation_key)).decode("utf-8")
@@ -321,6 +319,13 @@ def main():
 
     client.get_private_key()
     client.unlock_private_key(args.encryption_key)
+
+    receivers = [
+        client.search_user("Patrick Rauscher (OV Darmstadt)")[0],
+        client.search_user("Robert Patrick Schröder (OV Darmstadt)")[0],
+    ]
+    conversation = client.open_conversation(receivers)
+    client.send_msg(("conversation", conversation["id"]), "Test mit Standort", location=(49.861222, 8.640386))
 
 
 if __name__ == "__main__":
