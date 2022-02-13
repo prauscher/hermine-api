@@ -246,7 +246,7 @@ class StashCatClient:
                     ).decode("utf-8")
             yield message
 
-    def get_company_member(self):
+    def get_company_id(self):
         payload = {
             "client_key": self.client_key,
             "device_id": self.device_id,
@@ -264,11 +264,10 @@ class StashCatClient:
         return data["payload"]["companies"][0]["id"]
 
     def get_channels(self):
-        company_id = self.get_company_member()
         payload = {
             "client_key": self.client_key,
             "device_id": self.device_id,
-            "company_id": company_id,
+            "company": self.get_company_id(),
         }
         r = requests.post(
             f"{self.base_url}/channels/subscripted",
