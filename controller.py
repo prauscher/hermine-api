@@ -118,8 +118,8 @@ class HermineController(TGController):
         channels = [channel for company in client.get_companies() for channel in client.get_channels(company["id"])]
         channel_dict = next(filter(lambda chan_dict: chan_dict["name"] == channel_name, channels))
         file_ids = []
-        if file:
-            file_ids.append(client.upload_file(("channel", channel_dict["id"]), file, file.name, file.type)["id"])
+        if file is not None:
+            file_ids.append(client.upload_file(("channel", channel_dict["id"]), file.file, file.name, file.type)["id"])
         client.send_msg(("channel", channel_dict["id"]), message, files=file_ids)
         return {"status": "ok"}
 
