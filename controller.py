@@ -29,10 +29,9 @@ class HermineController(TGController):
     @decode_params("json")
     def subscribed_channels(self, *, user_id, client_key, **kw):
         client = StashCatClient(client_key, user_id)
-        client.get_channels()
         return {"channels":
             [{k: v for k, v in channel.items() if k in ["id", "name", "description", "image", "type", "visible", "last_action", "last_activity", "favourite", "manager", "user_count", "unread"]}
-             for channel in client.subscribed_channels.values()]
+             for channel in client.get_channels()]
         }
 
     @expose("json")
@@ -41,11 +40,10 @@ class HermineController(TGController):
         client = StashCatClient(client_key, user_id)
         client.get_private_key()
         client.unlock_private_key(encryption_key)
-        client.get_channels()
         channel_dict = next(filter(
             lambda chan_dict: chan_dict["name"] == channel_name,
-            client.subscribed_channels.values()))
-        client.send_msg_to_channel(channel_dict["id"], message)
+            client.get_channels()))
+        client.send_msg(("channel", channel_dict["id"]), message)
         return {"status": "ok"}
 
     @expose("json")
@@ -61,7 +59,7 @@ class HermineController(TGController):
                 return {"error": f"Name {name} does not match exactly one user"}
             receivers.append(results[0])
         conversation = client.open_conversation(receivers)
-        client.send_msg_to_user(conversation["id"], message)
+        client.send_msg(("conversation", conversation["id"]), message)
         return {"status": "ok"}
 
     @expose("json")
@@ -84,7 +82,6 @@ class HermineController(TGController):
             client.get_private_key()
 
         client.unlock_private_key(encryption_key)
-        client.get_channels()
         if not receiver:
             return {"status": "ok", "text": "login successful"}
 
@@ -96,31 +93,19 @@ class HermineController(TGController):
                     return {"error": f"Name {name} does not match exactly one user"}
                 receivers.append(results[0])
             conversation = client.open_conversation(receivers)
-            client.send_msg_to_user(conversation["id"], request.body.decode("utf-8"))
+            client.send_msg(("conversation", conversation["id"]), request.body.decode("utf-8"))
 
         elif receiver[0] == "chan":
             channel_dict = next(filter(
                 lambda chan_dict: chan_dict["name"] == receiver[1],
-                client.subscribed_channels.values()))
-            client.send_msg_to_channel(channel_dict["id"], request.body.decode("utf-8"))
+                client.get_channels()))
+            client.send_msg(("channel", channel_dict["id"]), request.body.decode("utf-8"))
         else:
             channel_dict = next(filter(
                 lambda chan_dict: chan_dict["name"] == receiver[0],
-                client.subscribed_channels.values()))
-            client.send_msg_to_channel(channel_dict["id"], request.body.decode("utf-8"))
+                client.get_channels()))
+            client.send_msg(("channel", channel_dict["id"]), request.body.decode("utf-8"))
 
-        return {"status": "ok"}
-
-    @expose("json")
-    def ga_send_channel(self, user_id, client_key, encryption_key, channel_name, **kw):
-        client = StashCatClient(client_key, user_id)
-        client.get_private_key()
-        client.unlock_private_key(encryption_key)
-        client.get_channels()
-        channel_dict = next(filter(
-            lambda chan_dict: chan_dict["name"] == channel_name,
-            client.subscribed_channels.values()))
-        client.send_msg_to_channel(channel_dict["id"], request.body.decode("utf-8"))
         return {"status": "ok"}
 
     @expose(content_type="text/plain")
