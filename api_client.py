@@ -53,7 +53,7 @@ class StashCatClient:
         try:
             response.raise_for_status()
         except requests.RequestException as exception:
-            raise ValueError(e) from exception
+            raise ValueError(exception) from exception
 
         resp_data = response.json()
         if resp_data["status"]["value"] != "OK":
@@ -81,20 +81,18 @@ class StashCatClient:
             private_key_field["private"], passphrase=encryption_password
         )
 
-    def get_open_conversations(self):
+    def get_open_conversations(self, *, limit=30, offset=0):
         data = self._post("message/conversations", data={
-            "limit": 30,
-            "offset": 0,
+            "limit": limit,
+            "offset": offset,
             "archive": 0,
         })
         return data["conversations"]
 
-    def search_user(self, search):
+    def search_user(self, search, *, limit=50, offset=0):
         data = self._post("users/listing", data={
-            "client_key": self.client_key,
-            "device_id": self.device_id,
-            "limit": 50,
-            "offset": 0,
+            "limit": limit,
+            "offset": offset,
             "key_hashes": False,
             "search": search,
             "sorting": ["first_name_asc", "last_name_asc"],
@@ -159,12 +157,12 @@ class StashCatClient:
                     ).decode("utf-8")
             yield message
 
-    def get_company_id(self):
+    def get_companies(self):
         data = self._post("company/member", data={"no_cache": True})
-        return data["companies"][0]["id"]
+        return data["companies"]
 
-    def get_channels(self):
-        data = self._post("channels/subscripted", data={"company": self.get_company_id()})
+    def get_channels(self, company_id):
+        data = self._post("channels/subscripted", data={"company": company_id})
         return data["channels"]
 
     def _get_conversation_key(self, target):
@@ -229,7 +227,6 @@ class StashCatClient:
         # All chunks must share the same iv
         iv = Crypto.Random.get_random_bytes(16)
         file_key = Crypto.Random.get_random_bytes(32)
-        conversation_key = self._get_conversation_key(target)
 
         content = file.read()
         chunk_size = 5 * 1024 * 1024
@@ -266,7 +263,7 @@ class StashCatClient:
             "file_id": file_data["id"],
             "target": target[0],
             "target_id": target[1],
-            "key": _encrypt_aes(file_key, conversation_key, iv).hex(),
+            "key": _encrypt_aes(file_key, self._get_conversation_key(target), iv).hex(),
             "iv": iv.hex(),
         })
 
@@ -317,15 +314,7 @@ def main():
     if not payload:
         return
 
-    client.get_private_key()
-    client.unlock_private_key(args.encryption_key)
-
-    receivers = [
-        client.search_user("Patrick Rauscher (OV Darmstadt)")[0],
-        client.search_user("Robert Patrick Schröder (OV Darmstadt)")[0],
-    ]
-    conversation = client.open_conversation(receivers)
-    client.send_msg(("conversation", conversation["id"]), "Test mit Standort", location=(49.861222, 8.640386))
+    client.open_private_key(args.encryption_key)
 
 
 if __name__ == "__main__":

@@ -27,11 +27,20 @@ class HermineController(TGController):
 
     @expose("json")
     @decode_params("json")
-    def subscribed_channels(self, *, user_id, client_key, **kw):
+    def companies(self, *, user_id, client_key, **kw):
+        client = StashCatClient(client_key, user_id)
+        return {"companies":
+            [{k: v for k, v in company.items() if k in ["id", "name"]}
+             for company in client.get_companies()]
+        }
+
+    @expose("json")
+    @decode_params("json")
+    def subscribed_channels(self, *, user_id, client_key, company_id, **kw):
         client = StashCatClient(client_key, user_id)
         return {"channels":
             [{k: v for k, v in channel.items() if k in ["id", "name", "description", "image", "type", "visible", "last_action", "last_activity", "favourite", "manager", "user_count", "unread"]}
-             for channel in client.get_channels()]
+             for channel in client.get_channels(company_id)]
         }
 
     @expose("json")
@@ -39,9 +48,8 @@ class HermineController(TGController):
     def send_channel(self, *, user_id, client_key, channel_name, encryption_key, message, **kw):
         client = StashCatClient(client_key, user_id)
         client.open_private_key(encryption_key)
-        channel_dict = next(filter(
-            lambda chan_dict: chan_dict["name"] == channel_name,
-            client.get_channels()))
+        channels = [channel for company in client.get_companies() for channel in client.get_channels(company["id"])]
+        channel_dict = next(filter(lambda chan_dict: chan_dict["name"] == channel_name, channels))
         client.send_msg(("channel", channel_dict["id"]), message)
         return {"status": "ok"}
 
@@ -92,14 +100,12 @@ class HermineController(TGController):
             client.send_msg(("conversation", conversation["id"]), request.body.decode("utf-8"))
 
         elif receiver[0] == "chan":
-            channel_dict = next(filter(
-                lambda chan_dict: chan_dict["name"] == receiver[1],
-                client.get_channels()))
+            channels = [channel for company in client.get_companies() for channel in client.get_channels(company["id"])]
+            channel_dict = next(filter(lambda chan_dict: chan_dict["name"] == receiver[1], channels))
             client.send_msg(("channel", channel_dict["id"]), request.body.decode("utf-8"))
         else:
-            channel_dict = next(filter(
-                lambda chan_dict: chan_dict["name"] == receiver[0],
-                client.get_channels()))
+            channels = [channel for company in client.get_companies() for channel in client.get_channels(company["id"])]
+            channel_dict = next(filter(lambda chan_dict: chan_dict["name"] == receiver[0], channels))
             client.send_msg(("channel", channel_dict["id"]), request.body.decode("utf-8"))
 
         return {"status": "ok"}
