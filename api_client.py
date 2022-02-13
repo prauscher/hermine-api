@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-# Taken with huge appreciation from https://gitlab.com/aeberhardt/stashcat-api-client
-# Extended by prauscher
-
 import argparse
 import base64
 import http.client
@@ -46,48 +43,39 @@ class StashCatClient:
             self.client_key = client_key
             self.user_id = user_id
 
+    def _post(self, url, *, data, include_auth=True, **kwargs):
+        data["device_id"] = self.device_id
+        if include_auth:
+            data["client_key"] = self.client_key
+
+        response = requests.post(f"{self.base_url}/{url}", data=data, headers=self.headers,
+                                 **kwargs)
+        response.raise_for_status()
+        data = response.json()
+        if data["status"]["value"] != "OK":
+            raise ValueError(data["status"]["message"])
+        return data["payload"]
+
     def login(self, username, password):
-        payload = {
+        data = self._post("auth/login", data={
             "email": username,
             "password": password,
-            "device_id": self.device_id,
             "app_name": f"hermine@thw-Firefox:82.0-browser-{self.stashcat_version}",
             "encrypted": True,
             "callable": True,
-        }
+        })
 
-        r = requests.post(
-            f"{self.base_url}/auth/login", data=payload, headers=self.headers
-        )
-        r.raise_for_status()
-
-        data = r.json()
-
-        if data["status"]["value"] != "OK":
-            raise ValueError(data["status"]["message"])
-
-        self.client_key = data["payload"]["client_key"]
-        self.user_id = data["payload"]["userinfo"]["id"]
-        return data["payload"]
+        self.client_key = data["client_key"]
+        self.user_id = data["userinfo"]["id"]
+        return data
 
     def get_private_key(self):
-        payload = {"client_key": self.client_key, "device_id": self.device_id}
-        r = requests.post(
-            f"{self.base_url}/security/get_private_key",
-            data=payload,
-            headers=self.headers,
-        )
-        r.raise_for_status()
-
-        data = r.json()
-        if data["status"]["value"] != "OK":
-            raise ValueError(data["status"]["message"])
-
-        private_key_field = json.loads(data["payload"]["keys"]["private_key"])
+        data = self._post("security/get_private_key", data={})
+        private_key_field = json.loads(data["keys"]["private_key"])
         # there might be an unescaping bug here....
         self.private_encrypted_key = private_key_field["private"]
-        self.public_key = data["payload"]["keys"]["public_key"]
-        return data["payload"]
+        self.public_key = data["keys"]["public_key"]
+        return data
 
     def unlock_private_key(self, encryption_password):
         self.private_key = Crypto.PublicKey.RSA.import_key(
@@ -95,38 +83,16 @@ class StashCatClient:
         )
         self.public_key = self.private_key.publickey()
 
-    def send_check(self):
-        payload = {"client_key": self.client_key, "device_id": self.device_id}
-        r = requests.post(
-            f"{self.base_url}/security/get_private_key",
-            data=payload,
-            headers=self.headers,
-        )
-        r.raise_for_status()
-
     def get_open_conversations(self):
-        payload = {
-            "client_key": self.client_key,
-            "device_id": self.device_id,
+        data = self._post("message/conversations", data={
             "limit": 30,
             "offset": 0,
             "archive": 0,
-        }
-        r = requests.post(
-            f"{self.base_url}/message/conversations",
-            data=payload,
-            headers=self.headers,
-        )
-        r.raise_for_status()
-
-        data = r.json()
-        if data["status"]["value"] != "OK":
-            raise ValueError(data["status"]["message"])
-
-        return data["payload"]["conversations"]
+        })
+        return data["conversations"]
 
     def search_user(self, search):
-        payload = {
+        data = self._post("users/listing", data={
             "client_key": self.client_key,
             "device_id": self.device_id,
             "limit": 50,
@@ -136,19 +102,8 @@ class StashCatClient:
             "sorting": ["first_name_asc", "last_name_asc"],
             "exclude_user_ids": [],
             "group_ids": [],
-        }
-        r = requests.post(
-            f"{self.base_url}/users/listing",
-            data=payload,
-            headers=self.headers,
-        )
-        r.raise_for_status()
-
-        data = r.json()
-        if data["status"]["value"] != "OK":
-            raise ValueError(data["status"]["message"])
-
-        return data["payload"]["users"]
+        })
+        return data["users"]
 
     def open_conversation(self, members):
         conversation_key = Crypto.Random.get_random_bytes(32)
@@ -168,155 +123,66 @@ class StashCatClient:
                 "key": base64.b64encode(encryptor.encrypt(conversation_key)).decode("utf-8")
             })
 
-        payload = {
-            "client_key": self.client_key,
-            "device_id": self.device_id,
+        data = self._post("message/createEncryptedConversation", data={
             "members": json.dumps(receivers),
-        }
-        r = requests.post(
-            f"{self.base_url}/message/createEncryptedConversation",
-            data=payload,
-            headers=self.headers,
-        )
-        r.raise_for_status()
-
-        data = r.json()
-        if data["status"]["value"] != "OK":
-            raise ValueError(data["status"]["message"])
-
-        conversation = data["payload"]["conversation"]
+        })
+        conversation = data["conversation"]
         self._key_cache[("conversation", conversation["id"])] = conversation["key"]
         return conversation
 
-    def get_messages(self, source):
-        payload = {
-            "client_key": self.client_key,
-            "device_id": self.device_id,
+    def get_messages(self, source, limit=30, offset=0):
+        data = self._post("message/content", data={
             f"{source[0]}_id": source[1],
             "source": source[0],
-            "limit": 30,
-            "offset": 0,
-        }
-        r = requests.post(
-            f"{self.base_url}/message/content",
-            data=payload,
-            headers=self.headers,
-        )
-        r.raise_for_status()
-
-        data = r.json()
-        if data["status"]["value"] != "OK":
-            raise ValueError(data["status"]["message"])
+            "limit": limit,
+            "offset": offset,
+        })
 
         conversation_key = self._get_conversation_key(source)
 
-        for message in data["payload"]["messages"]:
+        for message in data["messages"]:
             if message["kind"] == "message" and message["encrypted"]:
-                cipher = Crypto.Cipher.AES.new(
+                message["text_decrypted"] = _decrypt_aes(
+                    bytes.fromhex(message["text"]),
                     conversation_key,
-                    Crypto.Cipher.AES.MODE_CBC,
-                    iv=bytes.fromhex(message["iv"])
-                )
-
-                pt_bytes = Crypto.Util.Padding.unpad(
-                    cipher.decrypt(bytes.fromhex(message["text"])),
-                    Crypto.Cipher.AES.block_size
-                )
-                message["text_decrypted"] = pt_bytes.decode("utf-8")
+                    bytes.fromhex(message["iv"])
+                ).decode("utf-8")
 
                 if message["location"]["encrypted"]:
-                    cipher_lat = Crypto.Cipher.AES.new(
+                    message["location"]["latitude_decrypted"] = _decrypt_aes(
+                        bytes.fromhex(message["location"]["latitude"]),
                         conversation_key,
-                        Crypto.Cipher.AES.MODE_CBC,
-                        iv=bytes.fromhex(message["location"]["iv"])
-                    )
-                    message["location"]["latitude_decrypted"] = Crypto.Util.Padding.unpad(
-                        cipher_lat.decrypt(bytes.fromhex(message["location"]["latitude"])),
-                        Crypto.Cipher.AES.block_size
+                        bytes.fromhex(message["location"]["iv"])
                     ).decode("utf-8")
-
-                    cipher_lon = Crypto.Cipher.AES.new(
+                    message["location"]["longitude_decrypted"] = _decrypt_aes(
+                        bytes.fromhex(message["location"]["longitude"]),
                         conversation_key,
-                        Crypto.Cipher.AES.MODE_CBC,
-                        iv=bytes.fromhex(message["location"]["iv"])
-                    )
-                    message["location"]["longitude_decrypted"] = Crypto.Util.Padding.unpad(
-                        cipher_lon.decrypt(bytes.fromhex(message["location"]["longitude"])),
-                        Crypto.Cipher.AES.block_size
+                        bytes.fromhex(message["location"]["iv"])
                     ).decode("utf-8")
             yield message
 
     def get_company_id(self):
-        payload = {
-            "client_key": self.client_key,
-            "device_id": self.device_id,
-            "no_cache": True,
-        }
-        r = requests.post(
-            f"{self.base_url}/company/member", data=payload, headers=self.headers
-        )
-        r.raise_for_status()
-
-        data = r.json()
-        if data["status"]["value"] != "OK":
-            raise ValueError(data["status"]["message"])
-
-        return data["payload"]["companies"][0]["id"]
+        data = self._post("company/member", data={"no_cache": True})
+        return data["companies"][0]["id"]
 
     def get_channels(self):
-        payload = {
-            "client_key": self.client_key,
-            "device_id": self.device_id,
-            "company": self.get_company_id(),
-        }
-        r = requests.post(
-            f"{self.base_url}/channels/subscripted",
-            data=payload,
-            headers=self.headers,
-        )
-        r.raise_for_status()
-
-        data = r.json()
-        if data["status"]["value"] != "OK":
-            raise ValueError(data["status"]["message"])
-
-        return data["payload"]["channels"]
+        data = self._post("channels/subscripted", data={"company": self.get_company_id()})
+        return data["channels"]
 
     def _get_conversation_key(self, target):
         try:
             encrypted_key = self._key_cache[target]
         except KeyError:
             if target[0] == "conversation":
-                r = requests.post(
-                    f"{self.base_url}/message/conversation",
-                    data={
-                        "client_key": self.client_key,
-                        "device_id": self.device_id,
-                        "conversation_id": target[1]
-                    },
-                    headers=self.headers,
-                )
-                r.raise_for_status()
-                data = r.json()
-                if data["status"]["value"] != "OK":
-                    raise ValueError(r["status"]["message"]) from None
-                encrypted_key = data["payload"]["conversation"]["key"]
+                data = self._post("message/conversation",
+                                  data={"conversation_id": target[1]})
+                encrypted_key = data["conversation"]["key"]
             elif target[0] == "channel":
-                r = requests.post(
-                    f"{self.base_url}/channels/info",
-                    data={
-                        "client_key": self.client_key,
-                        "device_id": self.device_id,
-                        "channel_id": target[1],
-                        "without_members": True
-                    },
-                    headers=self.headers,
-                )
-                r.raise_for_status()
-                data = r.json()
-                if data["status"]["value"] != "OK":
-                    raise ValueError(r["status"]["message"]) from None
-                encrypted_key = data["payload"]["channels"]["key"]
+                data = self._post("channels/info", data={
+                    "channel_id": target[1],
+                    "without_members": True
+                })
+                encrypted_key = data["channels"]["key"]
             else:
                 raise AttributeError from None
 
@@ -325,37 +191,33 @@ class StashCatClient:
         decryptor = Crypto.Cipher.PKCS1_OAEP.new(self.private_key)
         return decryptor.decrypt(base64.b64decode(encrypted_key))
 
-    def send_msg(self, target, message, *, files=None):
+    def send_msg(self, target, message, *, files=None, location=None):
         files = files or []
 
+        iv = Crypto.Random.get_random_bytes(16)
         conversation_key = self._get_conversation_key(target)
-        cipher = Crypto.Cipher.AES.new(conversation_key, Crypto.Cipher.AES.MODE_CBC)
 
-        ct_bytes = cipher.encrypt(
-            Crypto.Util.Padding.pad(
-                message.encode("utf-8"), Crypto.Cipher.AES.block_size
-            )
-        )
-        r = requests.post(
-            f"{self.base_url}/message/send",
-            data={
-                "client_key": self.client_key,
-                "device_id": self.device_id,
-                "target": target[0],
-                f"{target[0]}_id": target[1],
-                "text": ct_bytes.hex(),
-                "iv": cipher.iv.hex(),
-                "files": json.dumps(files),
-                "url": "[]",
-                "type": "text",
-                "verification": "",
-                "encrypted": True,
-            },
-            headers=self.headers
-        )
-        r.raise_for_status()
+        payload = {
+            "client_key": self.client_key,
+            "device_id": self.device_id,
+            "target": target[0],
+            f"{target[0]}_id": target[1],
+            "text": _encrypt_aes(message.encode("utf-8"), conversation_key, iv).hex(),
+            "iv": iv.hex(),
+            "files": json.dumps(files),
+            "url": "[]",
+            "type": "text",
+            "verification": "",
+            "encrypted": True,
+        }
 
-        return r.json()["payload"]["message"]
+        if location:
+            payload["latitude"] = _encrypt_aes(
+                str(location[0]).encode("utf-8"), conversation_key, iv).hex()
+            payload["longitude"] = _encrypt_aes(
+                str(location[1]).encode("utf-8"), conversation_key, iv).hex()
+
+        return self._post("message/send", data=payload)["message"]
 
     def send_msg_to_channel(self, channel_id, message):
         return self.send_msg(("channel", channel_id), message)
@@ -366,13 +228,9 @@ class StashCatClient:
     def upload_file(self, target, file, filename, content_type="application/octet-stream", *,
                     media_size=None):
         media_size = media_size or (None, None)
-        cipher_conv = Crypto.Cipher.AES.new(
-            self._get_conversation_key(target),
-            Crypto.Cipher.AES.MODE_CBC
-        )
-
+        iv = Crypto.Random.get_random_bytes(16)
         file_key = Crypto.Random.get_random_bytes(32)
-        cipher_file = Crypto.Cipher.AES.new(file_key, Crypto.Cipher.AES.MODE_CBC)
+        conversation_key = self._get_conversation_key(target)
 
         content = file.read()
         chunk_size = 5 * 1024 * 1024
@@ -380,59 +238,55 @@ class StashCatClient:
         upload_uuid = str(uuid.uuid4())
         for nr in range(0, len(content), chunk_size):
             chunk = content[nr * chunk_size:(nr + 1) * chunk_size]
-            ct_bytes = cipher_file.encrypt(
-                Crypto.Util.Padding.pad(
-                    chunk,
-                    Crypto.Cipher.AES.block_size
-                )
+            ct_bytes = _encrypt_aes(
+                chunk,
+                file_key,
+                iv
             )
 
-            r = requests.post(
-                f"{self.base_url}/file/upload",
-                data={
-                    "resumableChunkNumber": nr,
-                    "resumableChunkSize": chunk_size,
-                    "resumableCurrentChunkSize": len(ct_bytes),
-                    "resumableTotalSize": len(content),
-                    "resumableType": content_type,
-                    "resumableIdentifier": upload_uuid,
-                    "resumableFilename": filename,
-                    "resumableRelativePath": filename,
-                    "resumableTotalChunks": -(len(content) // -chunk_size),
-                    "folder": 0,
-                    "type": target[0],
-                    "type_id": target[1],
-                    "encrypted": True,
-                    "iv": cipher_file.iv.hex(),
-                    "media_width": media_size[0],
-                    "media_height": media_size[1],
-                    "client_key": self.client_key,
-                   "device_id": self.device_id,
-                },
-                files={"file": ("[object Object]", ct_bytes, "application/octet-stream")},
-                headers=self.headers,
-            )
-            r.raise_for_status()
-            file_data = r.json()["payload"]["file"]
+            file_data = self._post("file/upload", data={
+                "resumableChunkNumber": nr,
+                "resumableChunkSize": chunk_size,
+                "resumableCurrentChunkSize": len(ct_bytes),
+                "resumableTotalSize": len(content),
+                "resumableType": content_type,
+                "resumableIdentifier": upload_uuid,
+                "resumableFilename": filename,
+                "resumableRelativePath": filename,
+                "resumableTotalChunks": -(len(content) // -chunk_size),
+                "folder": 0,
+                "type": target[0],
+                "type_id": target[1],
+                "encrypted": True,
+                "iv": iv.hex(),
+                "media_width": media_size[0],
+                "media_height": media_size[1],
+            }, files={"file": ("[object Object]", ct_bytes, "application/octet-stream")})["file"]
 
-        ct_bytes = cipher_conv.encrypt(
-            Crypto.Util.Padding.pad(file_key, Crypto.Cipher.AES.block_size)
-        )
-        r = requests.post(
-            f"{self.base_url}/security/set_file_access_key",
-            data={
-                "client_key": self.client_key,
-                "device_id": self.device_id,
-                "file_id": file_data["id"],
-                "target": target[0],
-                "target_id": target[1],
-                "key": ct_bytes.hex(),
-                "iv": cipher_conv.iv.hex(),
-            },
-            headers=self.headers,
-        )
-        r.raise_for_status()
+        iv = Crypto.Random.get_random_bytes(16)
+        self._post("security/set_file_access_key", data={
+            "file_id": file_data["id"],
+            "target": target[0],
+            "target_id": target[1],
+            "key": _encrypt_aes(file_key, conversation_key, iv).hex(),
+            "iv": iv.hex(),
+        })
+
         return file_data
+
+
+def _encrypt_aes(plain: bytes, key: bytes, iv: bytes):
+    return Crypto.Cipher.AES.new(key, Crypto.Cipher.AES.MODE_CBC, iv=iv).encrypt(
+        Crypto.Util.Padding.pad(plain, Crypto.Cipher.AES.block_size)
+    )
+
+
+def _decrypt_aes(cipher: bytes, key: bytes, iv: bytes):
+    cipher = Crypto.Cipher.AES.new(key, Crypto.Cipher.AES.MODE_CBC, iv=iv)
+    return Crypto.Util.Padding.unpad(
+        Crypto.Cipher.AES.new(key, Crypto.Cipher.AES.MODE_CBC).decrypt(cipher),
+        Crypto.Cipher.AES.block_size
+    )
 
 
 def setup_logging(debug=False):
