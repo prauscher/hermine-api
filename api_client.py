@@ -55,10 +55,10 @@ class StashCatClient:
         except requests.RequestException as exception:
             raise ValueError(e) from exception
 
-        data = response.json()
-        if data["status"]["value"] != "OK":
-            raise ValueError(data["status"]["message"])
-        return data["payload"]
+        resp_data = response.json()
+        if resp_data["status"]["value"] != "OK":
+            raise ValueError(resp_data["status"]["message"])
+        return resp_data["payload"]
 
     def login(self, username, password):
         data = self._post("auth/login", data={
@@ -226,15 +226,15 @@ class StashCatClient:
     def upload_file(self, target, file, filename, content_type="application/octet-stream", *,
                     media_size=None):
         media_size = media_size or (None, None)
+        # All chunks must share the same iv
         iv = Crypto.Random.get_random_bytes(16)
         file_key = Crypto.Random.get_random_bytes(32)
         conversation_key = self._get_conversation_key(target)
 
         content = file.read()
         chunk_size = 5 * 1024 * 1024
-        nr = 0
         upload_uuid = str(uuid.uuid4())
-        for nr in range(0, len(content), chunk_size):
+        for nr in range(-(len(content) // -chunk_size)):
             chunk = content[nr * chunk_size:(nr + 1) * chunk_size]
             ct_bytes = _encrypt_aes(
                 chunk,
