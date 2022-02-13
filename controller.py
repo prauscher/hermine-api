@@ -119,7 +119,14 @@ class HermineController(TGController):
         channel_dict = next(filter(lambda chan_dict: chan_dict["name"] == channel_name, channels))
         file_ids = []
         if file is not None:
-            file_ids.append(client.upload_file(("channel", channel_dict["id"]), file.file, file.name, file.type)["id"])
+            media_size = None
+            print(file.filename, file.type)
+            try:
+                image = Image.open(file.file)
+                media_size = (image.width, image.height)
+            except IOError:
+                pass
+            file_ids.append(client.upload_file(("channel", channel_dict["id"]), file.file, file.filename, file.type, media_size=media_size)["id"])
         client.send_msg(("channel", channel_dict["id"]), message, files=file_ids)
         return {"status": "ok"}
 
