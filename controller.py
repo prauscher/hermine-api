@@ -111,8 +111,9 @@ class HermineController(TGController):
         return {"status": "ok"}
 
     @expose("json")
-    def send_channel_attachment(self, user_id, client_key, encryption_key, *, channel_name, message, file=None, **kw):
-        client = StashCatClient(client_key, user_id)
+    def send_channel_attachment(self, mail, password, encryption_key, *, channel_name, message, file=None, **kw):
+        client = StashCatClient()
+        client.login(mail, password)
         client.open_private_key(encryption_key)
         channels = [channel for company in client.get_companies() for channel in client.get_channels(company["id"])]
         channel_dict = next(filter(lambda chan_dict: chan_dict["name"] == channel_name, channels))
