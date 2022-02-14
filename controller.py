@@ -127,6 +127,7 @@ class HermineController(TGController):
                 media_size = (image.width, image.height)
             except IOError:
                 pass
+            file.file.seek(0)
             file_ids.append(client.upload_file(("channel", channel_dict["id"]), file.file, file.filename, file.type, media_size=media_size)["id"])
         client.send_msg(("channel", channel_dict["id"]), message, files=file_ids)
         return {"status": "ok"}
