@@ -121,7 +121,6 @@ class HermineController(TGController):
         file_ids = []
         if file is not None:
             media_size = None
-            print(file.filename, file.type)
             try:
                 image = Image.open(file.file)
                 media_size = (image.width, image.height)
