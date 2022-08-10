@@ -151,7 +151,7 @@ class HermineController(TGController):
         return "Work in progress"
 
 
-def _send(self, client, target, message, **kwargs):
+def _send(client, target, message, **kwargs):
     if "membership" in target:
         target_api = ("channel", target["id"])
         target_text = target["name"]
