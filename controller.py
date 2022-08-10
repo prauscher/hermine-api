@@ -51,7 +51,7 @@ class HermineController(TGController):
         client.open_private_key(encryption_key)
         channels = [channel for company in client.get_companies() for channel in client.get_channels(company["id"])]
         channel_dict = next(filter(lambda chan_dict: chan_dict["name"] == channel_name, channels))
-        client.send_msg(("channel", channel_dict["id"]), message)
+        _send(client, channel_dict, message)
         return {"status": "ok"}
 
     @expose("json")
@@ -66,7 +66,7 @@ class HermineController(TGController):
                 return {"error": f"Name {name} does not match exactly one user"}
             receivers.append(results[0])
         conversation = client.open_conversation(receivers)
-        client.send_msg(("conversation", conversation["id"]), message)
+        _send(client, conversation["id"], message)
         return {"status": "ok"}
 
     @expose("json")
@@ -98,16 +98,16 @@ class HermineController(TGController):
                     return {"error": f"Name {name} does not match exactly one user"}
                 receivers.append(results[0])
             conversation = client.open_conversation(receivers)
-            client.send_msg(("conversation", conversation["id"]), request.body.decode("utf-8"))
+            _send(client, conversation, request.body.decode("utf-8"))
 
         elif receiver[0] == "chan":
             channels = [channel for company in client.get_companies() for channel in client.get_channels(company["id"])]
             channel_dict = next(filter(lambda chan_dict: chan_dict["name"] == receiver[1], channels))
-            client.send_msg(("channel", channel_dict["id"]), request.body.decode("utf-8"))
+            _send(client, channel_dict, request.body.decode("utf-8"))
         else:
             channels = [channel for company in client.get_companies() for channel in client.get_channels(company["id"])]
             channel_dict = next(filter(lambda chan_dict: chan_dict["name"] == receiver[0], channels))
-            client.send_msg(("channel", channel_dict["id"]), request.body.decode("utf-8"))
+            _send(client, channel_dict, request.body.decode("utf-8"))
 
         return {"status": "ok"}
 
@@ -128,7 +128,7 @@ class HermineController(TGController):
                 pass
             file.file.seek(0)
             file_ids.append(client.upload_file(("channel", channel_dict["id"]), file.file, file.filename, file.type, media_size=media_size)["id"])
-        client.send_msg(("channel", channel_dict["id"]), message, files=file_ids)
+        _send(client, channel_dict, message, files=file_ids)
         return {"status": "ok"}
 
     @expose(content_type="text/plain")
@@ -149,3 +149,18 @@ class HermineController(TGController):
     @expose()
     def index(self):
         return "Work in progress"
+
+
+def _send(self, client, target, message, **kwargs):
+    if "membership" in target:
+        target_api = ("channel", target["id"])
+        target_text = target["name"]
+    elif "members" in target:
+        target_api = ("conversation", target["id"])
+        target_text = ", ".join(f"{member['first_name']} {member['last_name']}" for member in target["members"])
+    else:
+        return
+
+    # T_ODAR_BotSpiegel
+    client.send_msg(("channel", 180808), f"[{target_text}] {message}", **kwargs)
+    client.send_msg(target_api, message, **kwargs)
