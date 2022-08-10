@@ -162,5 +162,5 @@ def _send(client, target, message, **kwargs):
         return
 
     # T_ODAR_BotSpiegel
-    client.send_msg(("channel", 180808), f"_An {target_text}_\n{message}", **kwargs)
+    client.send_msg(("channel", 180808), f"<em>An {target_text}</em>\n{message}", **kwargs)
     client.send_msg(target_api, message, **kwargs)
