@@ -138,11 +138,12 @@ class StashCatClient:
 
         for message in data["messages"]:
             if message["kind"] == "message" and message["encrypted"]:
-                message["text_decrypted"] = _decrypt_aes(
-                    bytes.fromhex(message["text"]),
-                    conversation_key,
-                    bytes.fromhex(message["iv"])
-                ).decode("utf-8")
+                if message["text"] is not None:
+                    message["text_decrypted"] = _decrypt_aes(
+                        bytes.fromhex(message["text"] ),
+                        conversation_key,
+                        bytes.fromhex(message["iv"])
+                    ).decode("utf-8")
 
                 if message["location"]["encrypted"]:
                     message["location"]["latitude_decrypted"] = _decrypt_aes(
@@ -277,9 +278,10 @@ def _encrypt_aes(plain: bytes, key: bytes, iv: bytes):
 
 
 def _decrypt_aes(cipher: bytes, key: bytes, iv: bytes):
-    cipher = Crypto.Cipher.AES.new(key, Crypto.Cipher.AES.MODE_CBC, iv=iv)
+    if not cipher:
+        return b''
     return Crypto.Util.Padding.unpad(
-        Crypto.Cipher.AES.new(key, Crypto.Cipher.AES.MODE_CBC).decrypt(cipher),
+        Crypto.Cipher.AES.new(key, Crypto.Cipher.AES.MODE_CBC, iv=iv).decrypt(cipher),
         Crypto.Cipher.AES.block_size
     )
 
