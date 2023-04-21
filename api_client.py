@@ -10,6 +10,11 @@ import random
 
 import requests
 
+try:
+    import socketio
+except ModuleNotFoundError:
+    socketio = None
+
 import Crypto.PublicKey.RSA
 import Crypto.Cipher
 import Crypto.Cipher.PKCS1_OAEP
@@ -20,6 +25,7 @@ import Crypto.Util.Padding
 
 class StashCatClient:
     base_url = "https://api.thw-messenger.de"
+    push_url = "https://push.thw-messenger.de"
 
     headers = {
         "Accept": "application/json, text/plain, */*",
@@ -75,6 +81,17 @@ class StashCatClient:
         self.user_id = data["userinfo"]["id"]
         self.hidden_id = data["userinfo"]["socket_id"]
         return data
+
+    def get_socket(self):
+        if socketio is None:
+            raise NotImplementedError
+
+        sio = socketio.Client()
+        sio.connect(self.push_url)
+        sio.emit("userid", {"hidden_id": self.hidden_id,
+                            "device_id": self.device_id,
+                            "client_key": self.client_key})
+        return sio
 
     def check(self):
         data = self._post("auth/check", data={
