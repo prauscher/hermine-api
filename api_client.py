@@ -69,7 +69,7 @@ class StashCatClient:
         return resp_data["payload"]
 
     def login(self, username, password):
-        data = self._post("auth/login", data={
+        data = self._post("auth/login", include_auth=False, data={
             "email": username,
             "password": password,
             "app_name": "hermine@thw-Chrome:97.0.4692.99-browser-4.11.1",
