@@ -15,62 +15,7 @@ account_dir = TemporaryDirectory()
 
 # Note: **kw is needed somehow to trick TurboGears-decode_params
 class HermineController(TGController):
-    @expose("json")
-    @decode_params("json")
-    def login(self, *, mail, password, **kw):
-        client = StashCatClient()
-        payload = client.login(mail, password)
-        if payload:
-            return {"user_id": payload["userinfo"]["id"],
-                    "client_key": payload["client_key"]}
-        else:
-            return {"error": "login failed"}
-
-    @expose("json")
-    @decode_params("json")
-    def companies(self, *, user_id, client_key, **kw):
-        client = StashCatClient(client_key, user_id)
-        return {"companies":
-            [{k: v for k, v in company.items() if k in ["id", "name"]}
-             for company in client.get_companies()]
-        }
-
-    @expose("json")
-    @decode_params("json")
-    def subscribed_channels(self, *, user_id, client_key, company_id, **kw):
-        client = StashCatClient(client_key, user_id)
-        return {"channels":
-            [{k: v for k, v in channel.items() if k in ["id", "name", "description", "image", "type", "visible", "last_action", "last_activity", "favourite", "manager", "user_count", "unread"]}
-             for channel in client.get_channels(company_id)]
-        }
-
-    @expose("json")
-    @decode_params("json")
-    def send_channel(self, *, user_id, client_key, channel_name, encryption_key, message, **kw):
-        client = StashCatClient(client_key, user_id)
-        client.open_private_key(encryption_key)
-        channels = [channel for company in client.get_companies() for channel in client.get_channels(company["id"])]
-        channel_dict = next(filter(lambda chan_dict: chan_dict["name"] == channel_name, channels))
-        _send(client, channel_dict, message)
-        return {"status": "ok"}
-
-    @expose("json")
-    @decode_params("json")
-    def send_conversation(self, *, user_id, client_key, encryption_key, names, message, **kw):
-        client = StashCatClient(client_key, user_id)
-        client.open_private_key(encryption_key)
-        receivers = []
-        for name in names:
-            results = client.search_user(name)
-            if len(results) != 1:
-                return {"error": f"Name {name} does not match exactly one user"}
-            receivers.append(results[0])
-        conversation = client.open_conversation(receivers)
-        _send(client, conversation["id"], message)
-        return {"status": "ok"}
-
-    @expose("json")
-    def ga_action(self, mail, password, encryption_key, *receiver, **kw):
+    def _get_client(self, mail, password, encryption_key):
         account_filename = f"{account_dir.name}/{hashlib.sha256(mail.encode('utf-8')).hexdigest()}"
         try:
             account_data = json.loads(open(account_filename, 'r', encoding='utf-8').read())
@@ -84,8 +29,15 @@ class HermineController(TGController):
                     json.dumps({'user_id': payload['userinfo']['id'],
                                 'client_key': payload['client_key']}))
             else:
-                return {'error': 'Login failed'}
+                raise ValueError
             client.open_private_key(encryption_key)
+
+    @expose("json")
+    def ga_action(self, mail, password, encryption_key, *receiver, **kw):
+        try:
+            client = self._get_client(mail, password, encryption_key)
+        except ValueError:
+            return {'error': 'Login failed'}
 
         if not receiver:
             return {"status": "ok", "text": "login successful"}
@@ -113,9 +65,11 @@ class HermineController(TGController):
 
     @expose("json")
     def send_channel_attachment(self, mail, password, encryption_key, *, channel_name, message, file=None, **kw):
-        client = StashCatClient()
-        client.login(mail, password)
-        client.open_private_key(encryption_key)
+        try:
+            client = self._get_client(mail, password, encryption_key)
+        except ValueError:
+            return {'error': 'Login failed'}
+
         channels = [channel for company in client.get_companies() for channel in client.get_channels(company["id"])]
         channel_dict = next(filter(lambda chan_dict: chan_dict["name"] == channel_name, channels))
         file_ids = []
