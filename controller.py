@@ -15,12 +15,12 @@ account_dir = TemporaryDirectory()
 
 # Note: **kw is needed somehow to trick TurboGears-decode_params
 class HermineController(TGController):
-    def _get_client(self, mail, password, encryption_key):
+    def _get_client(self, mail, password):
         account_filename = f"{account_dir.name}/{hashlib.sha256(mail.encode('utf-8')).hexdigest()}"
         try:
             account_data = json.loads(open(account_filename, 'r', encoding='utf-8').read())
             client = StashCatClient(account_data['client_key'], account_data['user_id'])
-            client.open_private_key(encryption_key)
+            client.check()
         except (OSError, ValueError):
             client = StashCatClient()
             payload = client.login(mail, password)
@@ -30,12 +30,14 @@ class HermineController(TGController):
                                 'client_key': payload['client_key']}))
             else:
                 raise ValueError
-            client.open_private_key(encryption_key)
+
+        return client
 
     @expose("json")
     def ga_action(self, mail, password, encryption_key, *receiver, **kw):
         try:
-            client = self._get_client(mail, password, encryption_key)
+            client = self._get_client(mail, password)
+            client.open_private_key(encryption_key)
         except ValueError:
             return {'error': 'Login failed'}
 
@@ -52,11 +54,11 @@ class HermineController(TGController):
             conversation = client.open_conversation(receivers)
             _send(client, conversation, request.body.decode("utf-8"))
 
-        elif receiver[0] == "chan":
-            channels = [channel for company in client.get_companies() for channel in client.get_channels(company["id"])]
-            channel_dict = next(filter(lambda chan_dict: chan_dict["name"] == receiver[1], channels))
-            _send(client, channel_dict, request.body.decode("utf-8"))
         else:
+            # allow explicit definition of channel
+            if receiver[0] == "chan":
+                receiver = receiver[1:]
+
             channels = [channel for company in client.get_companies() for channel in client.get_channels(company["id"])]
             channel_dict = next(filter(lambda chan_dict: chan_dict["name"] == receiver[0], channels))
             _send(client, channel_dict, request.body.decode("utf-8"))
@@ -66,7 +68,8 @@ class HermineController(TGController):
     @expose("json")
     def send_channel_attachment(self, mail, password, encryption_key, *, channel_name, message, file=None, **kw):
         try:
-            client = self._get_client(mail, password, encryption_key)
+            client = self._get_client(mail, password)
+            client.open_private_key(encryption_key)
         except ValueError:
             return {'error': 'Login failed'}
 

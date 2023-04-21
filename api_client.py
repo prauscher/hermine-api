@@ -5,6 +5,8 @@ import http.client
 import json
 import logging
 import uuid
+import string
+import random
 
 import requests
 
@@ -18,7 +20,6 @@ import Crypto.Util.Padding
 
 class StashCatClient:
     base_url = "https://api.thw-messenger.de"
-    device_id = "stashcatiskindofbrokenrandomstr1"
 
     headers = {
         "Accept": "application/json, text/plain, */*",
@@ -37,7 +38,8 @@ class StashCatClient:
     _key_cache = {}
 
     def __init__(self, client_key=None, user_id=None):
-        self.device_id = base64.b64encode(Crypto.Random.get_random_bytes(24)).decode("utf-8")
+        self.device_id = "".join(random.choice(string.ascii_letters + string.digits)
+                                 for _ in range(32))
 
         if client_key and user_id:
             self.client_key = client_key
@@ -72,6 +74,13 @@ class StashCatClient:
         self.client_key = data["client_key"]
         self.user_id = data["userinfo"]["id"]
         return data
+
+    def check(self):
+        data = self._post("auth/check", data={
+            "app_name": "hermine@thw-Chrome:97.0.4692.99-browser-4.11.1",
+            "encrypted": True,
+            "callable": True,
+        })
 
     def open_private_key(self, encryption_password):
         data = self._post("security/get_private_key", data={})
