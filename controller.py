@@ -27,14 +27,14 @@ class HermineController(TGController):
         except (OSError, ValueError):
             client = StashCatClient()
             payload = client.login(mail, password)
-            if payload:
-                open(account_filename, 'w', encoding='utf-8').write(
-                    json.dumps({'user_id': payload['userinfo']['id'],
-                                'client_key': payload['client_key'],
-                                'device_id': client.device_id,
-                                'hidden_id': client.hidden_id}))
-            else:
+            if not payload:
                 raise ValueError
+
+            open(account_filename, 'w', encoding='utf-8').write(
+                 json.dumps({'user_id': client.user_id,
+                             'client_key': client.client_key,
+                             'device_id': client.device_id,
+                             'hidden_id': client.hidden_id}))
 
         return client
 
