@@ -19,7 +19,10 @@ class HermineController(TGController):
         account_filename = f"{account_dir.name}/{hashlib.sha256(mail.encode('utf-8')).hexdigest()}"
         try:
             account_data = json.loads(open(account_filename, 'r', encoding='utf-8').read())
-            client = StashCatClient(account_data['client_key'], account_data['user_id'])
+            client = StashCatClient(account_data['device_id'],
+                                    account_data['client_key'],
+                                    account_data['user_id'],
+                                    account_data['hidden_id'])
             client.check()
         except (OSError, ValueError):
             client = StashCatClient()
@@ -27,7 +30,9 @@ class HermineController(TGController):
             if payload:
                 open(account_filename, 'w', encoding='utf-8').write(
                     json.dumps({'user_id': payload['userinfo']['id'],
-                                'client_key': payload['client_key']}))
+                                'client_key': payload['client_key'],
+                                'device_id': client.device_id,
+                                'hidden_id': client.hidden_id}))
             else:
                 raise ValueError
 

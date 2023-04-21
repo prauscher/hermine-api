@@ -31,19 +31,19 @@ class StashCatClient:
                       "KHTML, like Gecko) Chrome/97.0.4692.99 Mobile Safari/537.36",
     }
 
-    client_key = None
-    user_id = None
     private_key = None
 
     _key_cache = {}
 
-    def __init__(self, client_key=None, user_id=None):
-        self.device_id = "".join(random.choice(string.ascii_letters + string.digits)
-                                 for _ in range(32))
+    def __init__(self, device_id=None, client_key=None, user_id=None, hidden_id=None):
+        if device_id is None:
+            device_id = "".join(random.choice(string.ascii_letters + string.digits)
+                                for _ in range(32))
 
-        if client_key and user_id:
-            self.client_key = client_key
-            self.user_id = user_id
+        self.device_id = device_id
+        self.client_key = client_key
+        self.user_id = user_id
+        self.hidden_id = hidden_id
 
     def _post(self, url, *, data, include_auth=True, **kwargs):
         data["device_id"] = self.device_id
@@ -73,6 +73,7 @@ class StashCatClient:
 
         self.client_key = data["client_key"]
         self.user_id = data["userinfo"]["id"]
+        self.hidden_id = data["userinfo"]["socket_id"]
         return data
 
     def check(self):
