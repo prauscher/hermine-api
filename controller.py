@@ -60,13 +60,18 @@ class HermineController(TGController):
             _send(client, conversation, request.body.decode("utf-8"))
 
         else:
+            message = request.body.decode("utf-8")
+
             # allow explicit definition of channel
             if receiver[0] == "chan":
                 receiver = receiver[1:]
+            elif receiver[0] == "chan_grafana":
+                receiver = receiver[1:]
+                message = json.loads(message)["message"]
 
             channels = [channel for company in client.get_companies() for channel in client.get_channels(company["id"])]
             channel_dict = next(filter(lambda chan_dict: chan_dict["name"] == receiver[0], channels))
-            _send(client, channel_dict, request.body.decode("utf-8"))
+            _send(client, channel_dict, message)
 
         return {"status": "ok"}
 
