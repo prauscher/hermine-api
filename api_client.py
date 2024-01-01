@@ -238,20 +238,20 @@ class StashCatClient:
             "text": text,
         })
 
-     def get_channel_members(self, channel_id, *, limit=40, offset=0):
-         data = self._post("channels/members", data={
-             "channel_id": channel_id,
-             "limit": limit,
-             "offset": offset,
-             "filter": "members",
-             "sorting": ["first_name_asc", "last_name_asc"],
-         })
-         return data["members"]
+    def get_channel_members(self, channel_id, *, limit=40, offset=0):
+        data = self._post("channels/members", data={
+            "channel_id": channel_id,
+            "limit": limit,
+            "offset": offset,
+            "filter": "members",
+            "sorting": ["first_name_asc", "last_name_asc"],
+        })
+        return data["members"]
 
-     def delete_channel(self, channel_id):
-         self._post("channels/delete", data={
-             "channel_id": channel_id,
-         })
+    def delete_channel(self, channel_id):
+        self._post("channels/delete", data={
+            "channel_id": channel_id,
+        })
 
     def _get_conversation_key(self, target):
         try:
