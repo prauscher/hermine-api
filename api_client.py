@@ -87,10 +87,13 @@ class StashCatClient:
             raise NotImplementedError
 
         sio = socketio.Client()
+        @sio.on("connect")
+        def _connect():
+            sio.emit("userid", {"hidden_id": self.hidden_id,
+                                "device_id": self.device_id,
+                                "client_key": self.client_key})
+
         sio.connect(self.push_url)
-        sio.emit("userid", {"hidden_id": self.hidden_id,
-                            "device_id": self.device_id,
-                            "client_key": self.client_key})
         return sio
 
     def check(self):
@@ -127,6 +130,9 @@ class StashCatClient:
             "group_ids": [],
         })
         return data["users"]
+
+    def user_info(self, user_id):
+        return self._post("users/info", data={"user_id": user_id, "withkey": True})["user"]
 
     def open_conversation(self, members):
         conversation_key = Crypto.Random.get_random_bytes(32)
@@ -193,6 +199,60 @@ class StashCatClient:
         data = self._post("channels/subscripted", data={"company": company_id})
         return data["channels"]
 
+    def create_channel(self, name, company_id, *, description="",
+                       channel_type="closed", visible=False, writable="all",
+                       invitable="all", show_membership_activities=True):
+        conversation_key = Crypto.Random.get_random_bytes(32)
+        encryptor = Crypto.Cipher.PKCS1_OAEP.new(self.private_key.publickey())
+        key = base64.b64encode(encryptor.encrypt(conversation_key)).decode("utf-8")
+
+        data = self._post("channels/create", data={
+            "encryption_key": key,
+            "channel_name": name,
+            "company": company_id,
+            "description": description,
+            "type": channel_type,
+            "visible": visible,
+            "writable": writable,
+            "invitable": invitable,
+            "show_membership_activities": show_membership_activities,
+        })
+        channel = data["channel"]
+        self._key_cache[("channel", channel["id"])] = channel["key"]
+        return channel
+
+    def invite(self, channel_id, users, text=""):
+        conversation_key = self._get_conversation_key(("channel", channel_id))
+
+        receivers = []
+        for user in users:
+            pubkey = Crypto.PublicKey.RSA.import_key(user["public_key"])
+            encryptor = Crypto.Cipher.PKCS1_OAEP.new(pubkey)
+            receivers.append({
+               "id": int(user["id"]),
+                "key": base64.b64encode(encryptor.encrypt(conversation_key)).decode("utf-8")
+            })
+        self._post("channels/createInvite", data={
+            "channel_id": channel_id,
+            "users": receivers,
+            "text": text,
+        })
+
+     def get_channel_members(self, channel_id, *, limit=40, offset=0):
+         data = self._post("channels/members", data={
+             "channel_id": channel_id,
+             "limit": limit,
+             "offset": offset,
+             "filter": "members",
+             "sorting": ["first_name_asc", "last_name_asc"],
+         })
+         return data["members"]
+
+     def delete_channel(self, channel_id):
+         self._post("channels/delete", data={
+             "channel_id": channel_id,
+         })
+
     def _get_conversation_key(self, target):
         try:
             encrypted_key = self._key_cache[target]
@@ -223,7 +283,6 @@ class StashCatClient:
 
         payload = {
             "client_key": self.client_key,
-            "device_id": self.device_id,
             "target": target[0],
             f"{target[0]}_id": target[1],
             "text": _encrypt_aes(message.encode("utf-8"), conversation_key, iv).hex(),
@@ -298,6 +357,15 @@ class StashCatClient:
         return file_data
 
 
+def unpaginate(method, *args, offset=0, limit=30, **kwargs):
+    while True:
+        result = method(*args, **kwargs, limit=limit, offset=offset)
+        offset += len(result)
+        yield from result
+        if len(result) < limit:
+            return
+
+
 def _encrypt_aes(plain: bytes, key: bytes, iv: bytes):
     return Crypto.Cipher.AES.new(key, Crypto.Cipher.AES.MODE_CBC, iv=iv).encrypt(
         Crypto.Util.Padding.pad(plain, Crypto.Cipher.AES.block_size)
@@ -344,6 +412,20 @@ def main():
         return
 
     client.open_private_key(args.encryption_key)
+    socket = client.get_socket()
+
+    @socket.on("*")
+    def _event(*args):
+        # Blacklist spammy events
+        if args[0] == "online_status_change":
+            return
+
+        print("received", *args)
+
+    try:
+        socket.wait()
+    finally:
+        socket.disconnect()
 
 
 if __name__ == "__main__":
