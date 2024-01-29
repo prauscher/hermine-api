@@ -110,6 +110,10 @@ class HermineController(TGController):
                 alarmiert.append("{}x {}".format(label["amount"], label["label"]["name"]))
             else:
                 alarmiert.append(label["label"]["name"])
+
+        if not alarmiert:
+            return ""
+
         alarmiert.extend(["User #{}".format(user) for user in users])
         return ", ".join(alarmiert)
 
