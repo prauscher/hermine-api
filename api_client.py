@@ -6,6 +6,7 @@ import json
 import logging
 import uuid
 import string
+import time
 import random
 
 import requests
@@ -221,7 +222,7 @@ class StashCatClient:
         self._key_cache[("channel", channel["id"])] = channel["key"]
         return channel
 
-    def invite(self, channel_id, users, text=""):
+    def invite(self, channel_id, users, text="", expiry=None):
         conversation_key = self._get_conversation_key(("channel", channel_id))
 
         receivers = []
@@ -229,12 +230,14 @@ class StashCatClient:
             pubkey = Crypto.PublicKey.RSA.import_key(user["public_key"])
             encryptor = Crypto.Cipher.PKCS1_OAEP.new(pubkey)
             receivers.append({
-               "id": int(user["id"]),
-                "key": base64.b64encode(encryptor.encrypt(conversation_key)).decode("utf-8")
+                "id": int(user["id"]),
+                "key": base64.b64encode(encryptor.encrypt(conversation_key)).decode("utf-8"),
+                "expiry": expiry or time.time() + 7 * 24 * 60 * 60,
+                "userVerified": True,
             })
         self._post("channels/createInvite", data={
-            "channel_id": channel_id,
-            "users": receivers,
+            "channel_id": int(channel_id),
+            "users": json.dumps(receivers),
             "text": text,
         })
 
